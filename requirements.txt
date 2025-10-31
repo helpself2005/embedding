@@ -5,3 +5,4 @@ Pillow
 python-dotenv
 requests>=2.31.0
 dashscope>=1.12.0
+pymilvus>=2.5.0,<2.6.0
