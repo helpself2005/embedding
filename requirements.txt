@@ -1,0 +1,10 @@
+mcp==1.25.0
+aiofiles==24.1.0
+fastapi==0.115.6
+fastapi-mcp==0.4.0
+loguru==0.7.3
+openai==2.15.0
+pydantic==2.12.5
+pymilvus==2.6.6
+uvicorn==0.34.0
+agno==2.3.26
