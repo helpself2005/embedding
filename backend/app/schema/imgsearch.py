@@ -5,6 +5,7 @@ from pydantic.generics import GenericModel
 # 泛型类型 T
 T = TypeVar("T")
 
+
 class OneImageUploadDTO(BaseModel):
     file_name: str = ""
     file_data: bytes = b""
@@ -18,5 +19,3 @@ class OneImageSearchDTO(BaseModel):
     file_type: str = ""
     top_k: int = 5
     cosine: float = 0.25
-
-    

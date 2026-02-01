@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from typing import Literal, Optional
 from backend.core.logs.logger import logger
+
 # import logging as logger
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -23,6 +24,7 @@ def get_project_root():
             return str(parent)
     # 如果没找到，返回当前工作目录
     return os.getcwd()
+
 
 CONFIG_DIR = get_project_root()
 
@@ -64,7 +66,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=ENV_FILE, env_file_encoding="utf-8", extra="ignore"
     )
- 
+
     # 应用相关配置
     app_name: str = Field("文档图谱化处理", env="APP_NAME")
     app_desc: str = Field("文档图谱化处理程序", env="APP_DESC")
@@ -76,22 +78,34 @@ class Settings(BaseSettings):
         "development", env="ENVIRONMENT"
     )  # 默认设置为 "development", 生产环境为 "production"
 
-    mkdtempdir: str = Field("/Users/plshi/Documents/image_search/tempdir", env="MKDTEMPDIR")
-
-
-    dashscope_embedding_api_key: str = Field("sk-bbc64eaa6c7d4fc4a15df033554d2d5c", env="DASHSCOPE_EMBEDDING_API_KEY")
-    dashscope_embedding_model: str = Field("tongyi-embedding-vision-plus", env="DASHSCOPE_EMBEDDING_MODEL")
-    dashscope_embedding_dims: int = Field(1152, env="DASHSCOPE_EMBEDDING_DIMS")
+    mkdtempdir: str = Field(
+        "/Users/plshi/Documents/image_search/tempdir", env="MKDTEMPDIR"
+    )
 
     embedding_provider: str = Field("dashscope", env="EMBEDDING_PROVIDER")
 
+    dashscope_embedding_api_key: str = Field(
+        "sk-bbc64eaa6c7d4fc4a15df033554d2d5c", env="DASHSCOPE_EMBEDDING_API_KEY"
+    )
+
+    dashscope_embedding_dims: int = Field(1152, env="DASHSCOPE_EMBEDDING_DIMS")
+
+    dashscope_embedding_model: str = Field(
+        "tongyi-embedding-vision-plus", env="DASHSCOPE_EMBEDDING_MODEL"
+    )
+
+    dashscope_vl_model: str = Field(
+        "qwen3-vl-flash", env="DASHSCOPE_VL_MODEL"
+    )
 
     # Milvus配置
     milvus_host: Optional[str] = Field(default="101.42.31.155", env="MILVUS_HOST")
     milvus_port: Optional[str] = Field(default="29530", env="MILVUS_PORT")
     milvus_username: Optional[str] = Field(default=None, env="MILVUS_USERNAME")
     milvus_password: Optional[str] = Field(default=None, env="MILVUS_PASSWORD")
-    milvus_collection_name: Optional[str] = Field(default="imagesearch", env="MILVUS_COLLECTION_NAME")
+    milvus_collection_name: Optional[str] = Field(
+        default="imagesearch", env="MILVUS_COLLECTION_NAME"
+    )
     milvus_vector_dim: Optional[int] = Field(default=1152, env="MILVUS_VECTOR_DIM")
     milvus_auto_id: Optional[bool] = Field(default=True, env="MILVUS_AUPO_ID")
 
@@ -99,8 +113,6 @@ class Settings(BaseSettings):
         """初始化配置"""
         # Nacos 配置已在 lifespan 中初始化，这里直接调用父类初始化
         super().__init__()
-
-   
 
     @model_validator(mode="before")
     @classmethod
@@ -110,18 +122,6 @@ class Settings(BaseSettings):
             if isinstance(v, str) and v.strip() == "":
                 values[k] = None
         return values
-
-
-    # @model_validator(mode="after")
-    # def create_milvus_uri(self):
-    #     """创建Milvus连接URL"""
-    #     self.milvus_uri = f"http://{self.milvus_host}:{self.milvus_port}"
-    #     logger.info(f"Milvus URI配置完成，主机: {self.milvus_host}:{self.milvus_port}")
-    #     return self
-
-    # class Config:
-    #     env_file = '.env'
-    #     env_file_encoding = 'utf-8'
 
 
 # print('开始打印环境变量')  # 注释掉调试代码
