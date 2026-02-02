@@ -3,11 +3,14 @@ import os
 import sys
 import json
 import re
+import mimetypes
 from pathlib import Path
+from urllib.parse import urlparse
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 import dashscope
 from dashscope import MultiModalConversation
+import httpx
 from requests.exceptions import (
     SSLError,
     ConnectionError,
@@ -18,7 +21,7 @@ from backend.utils.process import (
     validate_image,
     image_to_data_url,
 )
-from backend.app.schema.imgcompare import ImageCompareDTO, ImageCompareResult
+from backend.app.schema.imgcompare import ImageCompareDTO, ImageCompareResult, ImageCompareByURLDTO
 from backend.core.configs import settings
 from backend.core.logs.logger import logger
 
@@ -203,4 +206,129 @@ def compare_images_service(image_compare_dto: ImageCompareDTO) -> ImageCompareRe
         raise e
     except Exception as e:
         logger.error(f"图片对比服务异常: {e}")
+        raise e
+
+
+def download_image_from_url(url: str, timeout: int = 30) -> tuple[bytes, str]:
+    """
+    从 URL 下载图片
+    
+    Args:
+        url: 图片的 URL 地址
+        timeout: 请求超时时间（秒）
+        
+    Returns:
+        tuple: (图片字节数据, MIME类型)
+        
+    Raises:
+        ValueError: URL 无效或下载失败时抛出
+        ConnectionError: 网络连接失败时抛出
+    """
+    try:
+        logger.info(f"开始从 URL 下载图片: {url}")
+        
+        # 使用 httpx 下载图片
+        with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+            response = client.get(url)
+            response.raise_for_status()
+            
+            # 获取内容类型
+            content_type = response.headers.get("content-type", "")
+            if content_type and content_type.startswith("image/"):
+                mime_type = content_type
+            else:
+                # 尝试从 URL 推断 MIME 类型
+                parsed_url = urlparse(url)
+                path = parsed_url.path
+                mime_type, _ = mimetypes.guess_type(path)
+                if not mime_type or not mime_type.startswith("image/"):
+                    # 根据文件扩展名推断
+                    ext = os.path.splitext(path)[1].lower()
+                    if ext in [".jpg", ".jpeg"]:
+                        mime_type = "image/jpeg"
+                    elif ext == ".png":
+                        mime_type = "image/png"
+                    elif ext == ".bmp":
+                        mime_type = "image/bmp"
+                    else:
+                        mime_type = "image/jpeg"  # 默认
+            
+            image_data = response.content
+            
+            logger.info(f"图片下载成功: URL={url}, 大小={len(image_data)} 字节, MIME类型={mime_type}")
+            
+            return image_data, mime_type
+            
+    except httpx.HTTPStatusError as e:
+        error_msg = f"HTTP 错误，状态码: {e.response.status_code}, URL: {url}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+    except httpx.RequestError as e:
+        error_msg = f"请求失败: {str(e)}, URL: {url}"
+        logger.error(error_msg)
+        raise ConnectionError(error_msg)
+    except Exception as e:
+        error_msg = f"下载图片失败: {str(e)}, URL: {url}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+
+
+def compare_images_by_url_service(url_compare_dto: ImageCompareByURLDTO) -> ImageCompareResult:
+    """
+    通过 URL 对比两张图片中的物品是否相同
+    
+    Args:
+        url_compare_dto: 包含两张图片 URL 和场景描述的 DTO
+        
+    Returns:
+        ImageCompareResult: 对比结果，包含是否相同、置信度和理由
+        
+    Raises:
+        ValueError: URL 无效或图片下载失败时抛出
+        ConnectionError: 网络连接失败时抛出
+        Exception: 其他失败时抛出异常
+    """
+    try:
+        logger.info(f"开始通过 URL 对比图片: image1_url={url_compare_dto.image1_url}, image2_url={url_compare_dto.image2_url}")
+        
+        # 下载两张图片
+        image1_data, image1_type = download_image_from_url(url_compare_dto.image1_url)
+        image2_data, image2_type = download_image_from_url(url_compare_dto.image2_url)
+        
+        # 验证图片数据有效性
+        if not validate_image(image1_data):
+            raise ValueError("第一张图片数据无效，无法解析")
+        if not validate_image(image2_data):
+            raise ValueError("第二张图片数据无效，无法解析")
+        
+        # 从 URL 提取文件名
+        image1_name = os.path.basename(urlparse(url_compare_dto.image1_url).path) or "image1"
+        image2_name = os.path.basename(urlparse(url_compare_dto.image2_url).path) or "image2"
+        
+        # 构建 ImageCompareDTO
+        image_compare_dto = ImageCompareDTO(
+            image1_data=image1_data,
+            image1_name=image1_name,
+            image1_type=image1_type,
+            image2_data=image2_data,
+            image2_name=image2_name,
+            image2_type=image2_type,
+            scene_description=url_compare_dto.scene_description,
+        )
+        
+        # 调用现有的对比服务
+        result = compare_images_service(image_compare_dto)
+        
+        logger.info(f"通过 URL 图片对比完成，结果: is_same={result.is_same}, confidence={result.confidence}")
+        
+        return result
+        
+    except ValueError as e:
+        logger.error(f"参数验证失败: {e}")
+        raise e
+    except ConnectionError as e:
+        logger.error(f"网络连接失败: {e}")
+        raise e
+    except Exception as e:
+        logger.error(f"通过 URL 图片对比服务异常: {e}")
         raise e

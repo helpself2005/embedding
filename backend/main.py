@@ -1,8 +1,10 @@
 """
 AI应急智能体服务主入口文件
 """
+
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import uvicorn
 from fastapi_mcp import FastApiMCP
@@ -27,12 +29,15 @@ async def log_mcp_requests(request: Request, call_next):
         body = await request.body()
         try:
             payload = json.loads(body.decode())
-            logger.info(f"📥 MCP 接收到请求:\n{json.dumps(payload, indent=2, ensure_ascii=False)}")
+            logger.info(
+                f"📥 MCP 接收到请求:\n{json.dumps(payload, indent=2, ensure_ascii=False)}"
+            )
         except Exception as e:
             logger.error(f"❌ 解析 MCP 请求失败: {e}, 原始 body: {body}")
-        
+
         # 重新构造 request（因为 body 已被消费）
         from starlette.requests import Request as StarletteRequest
+
         receive = request._receive
         new_request = StarletteRequest(
             scope=request.scope,
@@ -43,11 +48,17 @@ async def log_mcp_requests(request: Request, call_next):
         response = await call_next(request)
     return response
 
+
 mcp = FastApiMCP(
     app,
     name="图像处理功能",
     description="根据场景描述，对比两张图片中的物品是否相同",
-    include_operations=["api_compare_images"],
+    include_operations=[
+        "api_compare_images",
+        "api_compare_images_by_path",
+        "api_compare_images_by_base64",
+        "api_compare_images_by_url",
+    ],
     auth_config=None,
     # 将所有可能的响应 schema 放入描述
     describe_all_responses=True,
@@ -61,5 +72,10 @@ mcp.mount_http()
 
 if __name__ == "__main__":
     logger.info("启动FastAPI应用")
-    uvicorn.run("backend.main:app", host=settings.host, port=settings.port, workers=settings.workers) 
+    uvicorn.run(
+        "backend.main:app",
+        host=settings.host,
+        port=settings.port,
+        workers=settings.workers,
+    )
     logger.info("FastAPI应用已启动")
