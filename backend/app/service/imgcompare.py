@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 import dashscope
+from dashscope import MultiModalConversation
 from requests.exceptions import (
     SSLError,
     ConnectionError,
@@ -44,7 +45,7 @@ def compare_images_service(image_compare_dto: ImageCompareDTO) -> ImageCompareRe
         if not validate_image(image_compare_dto.image2_data):
             raise ValueError("第二张图片文件解析失败")
         
-        # 将图片转换为 data URL
+        # 将图片转换为 data URL 格式（dashscope MultiModalConversation 需要 data URL 格式）
         image1_data_url = image_to_data_url(
             image_compare_dto.image1_data, 
             image_compare_dto.image1_type
@@ -74,33 +75,31 @@ def compare_images_service(image_compare_dto: ImageCompareDTO) -> ImageCompareRe
 只返回JSON，不要包含其他文字说明。"""
 
         # 构建多模态消息
+        # dashscope MultiModalConversation 的消息格式：content 是包含 image 和 text 的列表
         messages = [
             {
                 "role": "user",
                 "content": [
                     {
-                        "image": image1_data_url,
-                        "type": "image"
+                        "image": image1_data_url
                     },
                     {
-                        "image": image2_data_url,
-                        "type": "image"
+                        "image": image2_data_url
                     },
                     {
-                        "text": prompt,
-                        "type": "text"
+                        "text": prompt
                     }
                 ]
             }
         ]
         
-        # 调用 DashScope Generation API
+        # 调用 DashScope MultiModalConversation API（用于视觉语言模型）
         logger.info(f"调用 qwen3-vl-flash 模型进行图片对比，场景描述: {image_compare_dto.scene_description}")
         
         # 设置 API Key
         dashscope.api_key = settings.dashscope_embedding_api_key
         
-        resp = dashscope.Generation.call(
+        resp = MultiModalConversation.call(
             model=settings.dashscope_vl_model,
             messages=messages,
         )
@@ -117,15 +116,31 @@ def compare_images_service(image_compare_dto: ImageCompareDTO) -> ImageCompareRe
             raise ValueError("模型返回结果为空")
         
         # 获取文本内容
+        # MultiModalConversation 返回格式：output.choices[0].message.content 可能是数组或字符串
         content = ""
         if isinstance(output, dict):
-            # 尝试多种可能的响应格式
             choices = output.get("choices", [])
             if choices and len(choices) > 0:
                 message = choices[0].get("message", {})
-                content = message.get("content", "") or message.get("text", "")
+                message_content = message.get("content", "")
+                
+                # content 可能是数组格式（包含 text 和 image）或字符串
+                if isinstance(message_content, list):
+                    # 如果是数组，提取所有 text 字段
+                    text_parts = []
+                    for item in message_content:
+                        if isinstance(item, dict) and "text" in item:
+                            text_parts.append(item["text"])
+                        elif isinstance(item, str):
+                            text_parts.append(item)
+                    content = " ".join(text_parts)
+                elif isinstance(message_content, str):
+                    content = message_content
+                else:
+                    content = str(message_content)
             else:
-                content = output.get("text", "") or output.get("content", "")
+                # 如果没有 choices，尝试其他字段
+                content = output.get("text", "") or str(output)
         elif isinstance(output, str):
             content = output
         else:
