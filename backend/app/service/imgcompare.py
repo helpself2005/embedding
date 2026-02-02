@@ -3,6 +3,7 @@ import os
 import sys
 import json
 import re
+import base64
 import mimetypes
 from pathlib import Path
 from urllib.parse import urlparse
@@ -211,11 +212,15 @@ def compare_images_service(image_compare_dto: ImageCompareDTO) -> ImageCompareRe
 
 def download_image_from_url(url: str, timeout: int = 30) -> tuple[bytes, str]:
     """
-    从 URL 下载图片
+    从 URL 下载图片或解析 data URL 格式的图片
+    
+    支持两种格式：
+    1. HTTP/HTTPS URL: 从网络下载图片
+    2. Data URL: data:image/jpeg;base64,xxx 格式，直接解析 base64 数据
     
     Args:
-        url: 图片的 URL 地址
-        timeout: 请求超时时间（秒）
+        url: 图片的 URL 地址或 data URL 格式字符串
+        timeout: 请求超时时间（秒，仅对 HTTP URL 有效）
         
     Returns:
         tuple: (图片字节数据, MIME类型)
@@ -225,6 +230,28 @@ def download_image_from_url(url: str, timeout: int = 30) -> tuple[bytes, str]:
         ConnectionError: 网络连接失败时抛出
     """
     try:
+        # 检查是否是 data URL 格式
+        if url.startswith("data:image/"):
+            logger.info(f"检测到 data URL 格式，直接解析: {url[:50]}...")
+            
+            # 解析 data URL: data:image/jpeg;base64,xxxxx
+            try:
+                header, data = url.split(",", 1)
+                mime_type = header.split(":")[1].split(";")[0]
+                
+                # 解码 base64
+                image_data = base64.b64decode(data)
+                
+                logger.info(f"Data URL 解析成功: MIME类型={mime_type}, 大小={len(image_data)} 字节")
+                
+                return image_data, mime_type
+                
+            except Exception as e:
+                error_msg = f"Data URL 解析失败: {str(e)}"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+        
+        # 普通 HTTP/HTTPS URL，从网络下载
         logger.info(f"开始从 URL 下载图片: {url}")
         
         # 使用 httpx 下载图片
@@ -267,8 +294,11 @@ def download_image_from_url(url: str, timeout: int = 30) -> tuple[bytes, str]:
         error_msg = f"请求失败: {str(e)}, URL: {url}"
         logger.error(error_msg)
         raise ConnectionError(error_msg)
+    except ValueError as e:
+        # 重新抛出 ValueError（可能是 data URL 解析错误）
+        raise e
     except Exception as e:
-        error_msg = f"下载图片失败: {str(e)}, URL: {url}"
+        error_msg = f"处理图片 URL 失败: {str(e)}, URL: {url}"
         logger.error(error_msg)
         raise ValueError(error_msg)
 

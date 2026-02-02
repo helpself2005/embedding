@@ -439,19 +439,21 @@ async def api_compare_images_by_base64(
     "/compare_by_url",
     operation_id="api_compare_images_by_url",
     summary="对比两张图片中的物品是否相同（通过图片URL）",
-    description="接收两张图片的URL地址和一个场景描述，自动下载图片并判断图片中的物品是否是同一个",
+    description="接收两张图片的URL地址（支持 HTTP/HTTPS URL 或 data URL 格式）和一个场景描述，自动下载或解析图片并判断图片中的物品是否是同一个",
     response_model=SearchResponse,
 )
 async def api_compare_images_by_url(
-    image1_url: str = Form(..., description="第一张图片的URL地址"),
-    image2_url: str = Form(..., description="第二张图片的URL地址"),
+    image1_url: str = Form(..., description="第一张图片的URL地址（支持 HTTP/HTTPS URL 或 data URL 格式，如 data:image/jpeg;base64,xxx）"),
+    image2_url: str = Form(..., description="第二张图片的URL地址（支持 HTTP/HTTPS URL 或 data URL 格式，如 data:image/jpeg;base64,xxx）"),
     scene_description: str = Form(..., description="场景描述信息"),
 ) -> SearchResponse:
     """
     对比两张图片中的物品是否相同（通过图片URL）
     
-    此接口接受图片URL地址，自动下载图片后进行对比。
-    支持 HTTP/HTTPS 协议的图片URL。
+    此接口接受图片URL地址，自动下载或解析图片后进行对比。
+    支持两种格式：
+    1. HTTP/HTTPS URL: 从网络下载图片（如 https://example.com/image.jpg）
+    2. Data URL: 直接使用 base64 编码的图片数据（如 data:image/jpeg;base64,iVBORw0KGgo...）
     
     Args:
         image1_url: 第一张图片的URL地址
@@ -462,40 +464,48 @@ async def api_compare_images_by_url(
         SearchResponse: 包含对比结果的响应
     """
     try:
-        # 验证 URL 格式
+        # 验证 URL 格式（支持 HTTP/HTTPS URL 和 data URL）
         from urllib.parse import urlparse
         
-        parsed_url1 = urlparse(image1_url)
-        parsed_url2 = urlparse(image2_url)
+        # 检查是否是 data URL 格式
+        is_data_url1 = image1_url.startswith("data:image/")
+        is_data_url2 = image2_url.startswith("data:image/")
         
-        if not parsed_url1.scheme or not parsed_url1.netloc:
-            return SearchResponse(
-                code=MessageCode.FAIL,
-                msg=f"第一张图片URL格式无效: {image1_url}",
-                data=None
-            )
+        if not is_data_url1:
+            # 普通 URL，验证格式
+            parsed_url1 = urlparse(image1_url)
+            if not parsed_url1.scheme or not parsed_url1.netloc:
+                return SearchResponse(
+                    code=MessageCode.FAIL,
+                    msg=f"第一张图片URL格式无效: {image1_url}",
+                    data=None
+                )
+            
+            # 验证协议（只支持 HTTP/HTTPS）
+            if parsed_url1.scheme not in ["http", "https"]:
+                return SearchResponse(
+                    code=MessageCode.FAIL,
+                    msg=f"第一张图片URL协议不支持，仅支持 http/https 或 data URL 格式: {image1_url}",
+                    data=None
+                )
         
-        if not parsed_url2.scheme or not parsed_url2.netloc:
-            return SearchResponse(
-                code=MessageCode.FAIL,
-                msg=f"第二张图片URL格式无效: {image2_url}",
-                data=None
-            )
-        
-        # 验证协议（只支持 HTTP/HTTPS）
-        if parsed_url1.scheme not in ["http", "https"]:
-            return SearchResponse(
-                code=MessageCode.FAIL,
-                msg=f"第一张图片URL协议不支持，仅支持 http/https: {image1_url}",
-                data=None
-            )
-        
-        if parsed_url2.scheme not in ["http", "https"]:
-            return SearchResponse(
-                code=MessageCode.FAIL,
-                msg=f"第二张图片URL协议不支持，仅支持 http/https: {image2_url}",
-                data=None
-            )
+        if not is_data_url2:
+            # 普通 URL，验证格式
+            parsed_url2 = urlparse(image2_url)
+            if not parsed_url2.scheme or not parsed_url2.netloc:
+                return SearchResponse(
+                    code=MessageCode.FAIL,
+                    msg=f"第二张图片URL格式无效: {image2_url}",
+                    data=None
+                )
+            
+            # 验证协议（只支持 HTTP/HTTPS）
+            if parsed_url2.scheme not in ["http", "https"]:
+                return SearchResponse(
+                    code=MessageCode.FAIL,
+                    msg=f"第二张图片URL协议不支持，仅支持 http/https 或 data URL 格式: {image2_url}",
+                    data=None
+                )
         
         logger.info(f"开始处理图片对比请求（URL）: image1_url={image1_url}, image2_url={image2_url}, scene={scene_description}")
         
