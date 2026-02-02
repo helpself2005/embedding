@@ -7,7 +7,7 @@ from agno.tools.mcp import MCPTools
 async def main():
     mcp_tools = MCPTools(
         transport="streamable-http",
-        url="http://localhost:8000/mcp"
+        url="http://localhost:8080/mcp"
     )
     await mcp_tools.connect()
 

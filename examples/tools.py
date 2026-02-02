@@ -4,7 +4,7 @@ from mcp.client.streamable_http import streamable_http_client
 
 async def main():
     # 连接到 MCP Server 的 HTTP(S) 地址
-    async with streamable_http_client("http://localhost:8000/mcp") as (read, write, _):
+    async with streamable_http_client("http://localhost:8080/mcp") as (read, write, _):
         # 创建 session
         async with ClientSession(read, write) as session:
             # 初始化连接

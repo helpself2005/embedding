@@ -45,9 +45,9 @@ async def log_mcp_requests(request: Request, call_next):
 
 mcp = FastApiMCP(
     app,
-    name="以图搜图",
-    description="根据输入图像，搜索相似图像",
-    include_operations=["upload_image", "search_image"],
+    name="图像处理功能",
+    description="根据场景描述，对比两张图片中的物品是否相同",
+    include_operations=["api_compare_images"],
     auth_config=None,
     # 将所有可能的响应 schema 放入描述
     describe_all_responses=True,
