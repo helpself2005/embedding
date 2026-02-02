@@ -22,7 +22,7 @@ router = APIRouter()
 
 # mcp接口测试
 @router.post(
-    "/upload_image",
+    "/upload",
     operation_id="upload_image",
     summary="上传图片",
     description=f"图片支持类型:{ALLOWED_EXTENSIONS}",

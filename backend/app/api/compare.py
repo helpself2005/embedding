@@ -18,7 +18,7 @@ router = APIRouter()
 
 
 @router.post(
-    "/api_compare_images",
+    "/compare",
     operation_id="api_compare_images",
     summary="对比两张图片中的物品是否相同",
     description=f"接收两张图片和一个场景描述，判断图片中的物品是否是同一个。图片支持类型:{ALLOWED_EXTENSIONS}",

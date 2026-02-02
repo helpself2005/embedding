@@ -72,7 +72,7 @@ class Settings(BaseSettings):
     app_desc: str = Field("文档图谱化处理程序", env="APP_DESC")
     app_version: str = Field("1.0", env="APP_VERSION")
     host: str = Field("0.0.0.0", env="HOST")
-    port: int = Field(8033, env="PORT")
+    port: int = Field(8080, env="PORT")
     workers: int = Field(1, env="WORKERS")
     environment: str = Field(
         "development", env="ENVIRONMENT"

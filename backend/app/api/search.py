@@ -24,7 +24,7 @@ from typing import List, Optional
 
 # mcp接口测试
 @router.post(
-    "/search_image",
+    "/search",
     operation_id="search_image",
     summary="搜索图片",
     description=f"图片支持类型:{ALLOWED_EXTENSIONS}",

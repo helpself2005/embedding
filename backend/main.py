@@ -18,6 +18,7 @@ from backend.app.schema import *
 from fastapi import FastAPI, Request
 import json
 
+
 # 临时加入，抓取智能体的工具调用请求（以后需合并到中间件）
 @app.middleware("http")
 async def log_mcp_requests(request: Request, call_next):
