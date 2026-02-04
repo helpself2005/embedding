@@ -307,6 +307,9 @@ def compare_images_by_url_service(url_compare_dto: ImageCompareByURLDTO) -> Imag
     """
     通过 URL 对比两张图片中的物品是否相同
     
+    直接使用 ImageCompareByURLDTO 的字段（image1_url, image2_url, scene_description）
+    组织调用大模型，无需下载图片或构建中间对象。
+    
     Args:
         url_compare_dto: 包含两张图片 URL 和场景描述的 DTO
         
@@ -314,50 +317,111 @@ def compare_images_by_url_service(url_compare_dto: ImageCompareByURLDTO) -> Imag
         ImageCompareResult: 对比结果，包含是否相同、置信度和理由
         
     Raises:
-        ValueError: URL 无效或图片下载失败时抛出
-        ConnectionError: 网络连接失败时抛出
-        Exception: 其他失败时抛出异常
+        ValueError: URL 无效时抛出
+        Exception: 调用大模型失败时抛出异常
     """
     try:
-        logger.info(f"开始通过 URL 对比图片: image1_url={url_compare_dto.image1_url}, image2_url={url_compare_dto.image2_url}")
+        logger.info(f"通过 URL 直接调用大模型对比图片: image1_url={url_compare_dto.image1_url}, image2_url={url_compare_dto.image2_url}, scene_description={url_compare_dto.scene_description}")
         
-        # 下载两张图片
-        image1_data, image1_type = download_image_from_url(url_compare_dto.image1_url)
-        image2_data, image2_type = download_image_from_url(url_compare_dto.image2_url)
+        # 构建 prompt
+        prompt = f"""你是一个专业的图像对比分析专家。请分析以下两张图片，根据场景描述判断它们中的物品是否是同一个。
+
+场景描述：{url_compare_dto.scene_description}
+
+请仔细对比两张图片中的物品特征，包括但不限于：
+- 外观特征（颜色、形状、大小、纹理等）
+- 位置和角度
+- 场景上下文
+
+请以JSON格式返回结果，格式如下：
+{{
+    "is_same": true/false,
+    "confidence": 0.0-1.0之间的浮点数,
+    "reason": "详细的判断理由"
+}}
+
+只返回JSON，不要包含其他文字说明。"""
+
+        # 构建多模态消息，直接使用 DTO 字段
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"image": url_compare_dto.image1_url},
+                    {"image": url_compare_dto.image2_url},
+                    {"text": prompt}
+                ]
+            }
+        ]
         
-        # 验证图片数据有效性
-        if not validate_image(image1_data):
-            raise ValueError("第一张图片数据无效，无法解析")
-        if not validate_image(image2_data):
-            raise ValueError("第二张图片数据无效，无法解析")
+        # 调用 DashScope MultiModalConversation API
+        logger.info(f"调用 {settings.dashscope_vl_model} 模型进行图片对比")
+        dashscope.api_key = settings.dashscope_embedding_api_key
         
-        # 从 URL 提取文件名
-        image1_name = os.path.basename(urlparse(url_compare_dto.image1_url).path) or "image1"
-        image2_name = os.path.basename(urlparse(url_compare_dto.image2_url).path) or "image2"
-        
-        # 构建 ImageCompareDTO
-        image_compare_dto = ImageCompareDTO(
-            image1_data=image1_data,
-            image1_name=image1_name,
-            image1_type=image1_type,
-            image2_data=image2_data,
-            image2_name=image2_name,
-            image2_type=image2_type,
-            scene_description=url_compare_dto.scene_description,
+        resp = MultiModalConversation.call(
+            model=settings.dashscope_vl_model,
+            messages=messages,
         )
         
-        # 调用现有的对比服务
-        result = compare_images_service(image_compare_dto)
+        # 检查响应状态
+        if resp.status_code != 200:
+            error_msg = f"API调用失败，状态码: {resp.status_code}, 消息: {getattr(resp, 'message', '')}, code: {getattr(resp, 'code', '')}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
+        
+        # 提取响应内容
+        output = resp.output
+        if not output:
+            raise ValueError("模型返回结果为空")
+        
+        # 获取文本内容
+        content = ""
+        if isinstance(output, dict):
+            choices = output.get("choices", [])
+            if choices:
+                message_content = choices[0].get("message", {}).get("content", "")
+                if isinstance(message_content, list):
+                    content = " ".join(item.get("text", "") if isinstance(item, dict) else str(item) for item in message_content if isinstance(item, (dict, str)))
+                elif isinstance(message_content, str):
+                    content = message_content
+                else:
+                    content = str(message_content)
+            else:
+                content = output.get("text", "") or str(output)
+        else:
+            content = str(output)
+        
+        if not content:
+            raise ValueError("模型返回内容为空")
+        
+        logger.info(f"模型返回内容: {content}")
+        
+        # 解析JSON结果
+        json_match = re.search(r'\{[^{}]*"is_same"[^{}]*\}', content, re.DOTALL)
+        json_str = json_match.group(0) if json_match else re.sub(r'^```json\s*|^```\s*|\s*```$', '', content.strip())
+        
+        try:
+            result_dict = json.loads(json_str)
+        except json.JSONDecodeError:
+            logger.warning("JSON解析失败，尝试从文本中提取信息")
+            result_dict = {
+                "is_same": "true" in content.lower() or "相同" in content or "同一个" in content,
+                "confidence": 0.5,
+                "reason": content
+            }
+        
+        # 构建结果
+        result = ImageCompareResult(
+            is_same=bool(result_dict.get("is_same", False)),
+            confidence=max(0.0, min(1.0, float(result_dict.get("confidence", 0.5)))),
+            reason=str(result_dict.get("reason", "未提供理由"))
+        )
         
         logger.info(f"通过 URL 图片对比完成，结果: is_same={result.is_same}, confidence={result.confidence}")
-        
         return result
         
     except ValueError as e:
         logger.error(f"参数验证失败: {e}")
-        raise e
-    except ConnectionError as e:
-        logger.error(f"网络连接失败: {e}")
         raise e
     except Exception as e:
         logger.error(f"通过 URL 图片对比服务异常: {e}")

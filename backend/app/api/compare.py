@@ -26,6 +26,7 @@ router = APIRouter()
     description=f"接收两张图片和一个场景描述，判断图片中的物品是否是同一个。图片支持类型:{ALLOWED_EXTENSIONS}",
     response_model=SearchResponse,
 )
+
 async def api_compare_images(
     image1: UploadFile = File(..., description="第一张图片"),
     image2: UploadFile = File(..., description="第二张图片"),
@@ -443,9 +444,7 @@ async def api_compare_images_by_base64(
     response_model=SearchResponse,
 )
 async def api_compare_images_by_url(
-    image1_url: str = Form(..., description="第一张图片的URL地址（支持 HTTP/HTTPS URL 或 data URL 格式，如 data:image/jpeg;base64,xxx）"),
-    image2_url: str = Form(..., description="第二张图片的URL地址（支持 HTTP/HTTPS URL 或 data URL 格式，如 data:image/jpeg;base64,xxx）"),
-    scene_description: str = Form(..., description="场景描述信息"),
+    url_compare_dto: ImageCompareByURLDTO,
 ) -> SearchResponse:
     """
     对比两张图片中的物品是否相同（通过图片URL）
@@ -456,65 +455,13 @@ async def api_compare_images_by_url(
     2. Data URL: 直接使用 base64 编码的图片数据（如 data:image/jpeg;base64,iVBORw0KGgo...）
     
     Args:
-        image1_url: 第一张图片的URL地址
-        image2_url: 第二张图片的URL地址
-        scene_description: 场景描述信息，用于指导模型判断
+        url_compare_dto: 包含两张图片URL和场景描述的DTO对象
         
     Returns:
         SearchResponse: 包含对比结果的响应
     """
     try:
-        # 验证 URL 格式（支持 HTTP/HTTPS URL 和 data URL）
-        from urllib.parse import urlparse
-        
-        # 检查是否是 data URL 格式
-        is_data_url1 = image1_url.startswith("data:image/")
-        is_data_url2 = image2_url.startswith("data:image/")
-        
-        if not is_data_url1:
-            # 普通 URL，验证格式
-            parsed_url1 = urlparse(image1_url)
-            if not parsed_url1.scheme or not parsed_url1.netloc:
-                return SearchResponse(
-                    code=MessageCode.FAIL,
-                    msg=f"第一张图片URL格式无效: {image1_url}",
-                    data=None
-                )
-            
-            # 验证协议（只支持 HTTP/HTTPS）
-            if parsed_url1.scheme not in ["http", "https"]:
-                return SearchResponse(
-                    code=MessageCode.FAIL,
-                    msg=f"第一张图片URL协议不支持，仅支持 http/https 或 data URL 格式: {image1_url}",
-                    data=None
-                )
-        
-        if not is_data_url2:
-            # 普通 URL，验证格式
-            parsed_url2 = urlparse(image2_url)
-            if not parsed_url2.scheme or not parsed_url2.netloc:
-                return SearchResponse(
-                    code=MessageCode.FAIL,
-                    msg=f"第二张图片URL格式无效: {image2_url}",
-                    data=None
-                )
-            
-            # 验证协议（只支持 HTTP/HTTPS）
-            if parsed_url2.scheme not in ["http", "https"]:
-                return SearchResponse(
-                    code=MessageCode.FAIL,
-                    msg=f"第二张图片URL协议不支持，仅支持 http/https 或 data URL 格式: {image2_url}",
-                    data=None
-                )
-        
-        logger.info(f"开始处理图片对比请求（URL）: image1_url={image1_url}, image2_url={image2_url}, scene={scene_description}")
-        
-        # 构建 URL DTO
-        url_compare_dto = ImageCompareByURLDTO(
-            image1_url=image1_url,
-            image2_url=image2_url,
-            scene_description=scene_description,
-        )
+        logger.info(f"开始处理图片对比请求（URL）: image1_url={url_compare_dto.image1_url}, image2_url={url_compare_dto.image2_url}, scene={url_compare_dto.scene_description}")
         
         # 调用service层（异步执行，因为下载图片可能耗时）
         compare_result = await asyncio.to_thread(

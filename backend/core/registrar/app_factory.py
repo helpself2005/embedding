@@ -4,6 +4,8 @@ FastAPI应用工厂模块
 """
 from fastapi import FastAPI
 
+from backend.core.configs.config import settings
+
 from .lifespan import lifespan
 from backend.app.api import api_router
 from .middleware import configure_middleware
@@ -18,11 +20,11 @@ def create_app() -> FastAPI:
     """
     # 创建FastAPI应用
     app = FastAPI(
-        title="以图搜图",
-        description="基于FastAPI的图片搜索",
+        title=settings.app_name,
+        description=settings.app_desc,
         docs_url="/api/docs",
         redoc_url="/api/redocs",
-        version="1.0.0",
+        version=settings.app_version,
         lifespan=lifespan,
     )
     
