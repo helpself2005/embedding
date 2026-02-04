@@ -13,7 +13,3 @@ class ApiResponse(
     code: int = Field(200, title="状态码")
     msg: str = Field("", title="提示信息")
     data: Any = Field(None, title="返回结果数据")
-
-
-# 保持向后兼容，保留 SearchResponse 作为别名
-SearchResponse = ApiResponse
