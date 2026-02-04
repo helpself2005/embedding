@@ -7,7 +7,7 @@ import mimetypes
 import traceback
 from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, UploadFile
-from backend.app.schema import *
+from backend.app.schema import ApiResponse, UploadRequest, OneImageUploadDTO
 from backend.core.errors import *
 from backend.core.logs.logger import logger
 from backend.core.configs.config import settings
@@ -55,7 +55,7 @@ async def upload_image(
             insert_image_service, one_image_upload_dto, milvus_client
         )
 
-        return SearchResponse(
+        return ApiResponse(
             code=MessageCode.SUCCESS,
             msg=MessageStatus.SUCCESS,
             data=f"{vectorize_data}",
@@ -66,7 +66,7 @@ async def upload_image(
         logger.exception(
             f"code:{MessageCode.FAIL}, msg:{MessageStatus.FAIL}, err_msg:{err_msg}"
         )
-        return SearchResponse(
+        return ApiResponse(
             code=MessageCode.FAIL, msg=MessageStatus.FAIL, data=f"{err_msg}"
         )
 
@@ -118,7 +118,7 @@ async def api_upload_image(
             file_status.append(
                 {"filename": uploaded_file.filename, "filestatus": "success"}
             )
-        return SearchResponse(
+        return ApiResponse(
             code=MessageCode.SUCCESS, msg=MessageStatus.SUCCESS, data=f"{file_status}"
         )
 
@@ -127,6 +127,6 @@ async def api_upload_image(
         logger.exception(
             f"code:{MessageCode.FAIL}, msg:{MessageStatus.FAIL}, err_msg:{err_msg}"
         )
-        return SearchResponse(
+        return ApiResponse(
             code=MessageCode.FAIL, msg=MessageStatus.FAIL, data=f"{err_msg}"
         )

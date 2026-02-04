@@ -7,7 +7,7 @@ import mimetypes
 import traceback
 from typing import List, Optional
 from fastapi import APIRouter, Depends, File, UploadFile
-from backend.app.schema import *
+from backend.app.schema import ApiResponse, SearchRequest, OneImageUploadDTO, OneImageSearchDTO
 from backend.core.errors import *
 from backend.app.service.imgsearch import search_image_service
 from backend.core.logs.logger import logger
@@ -28,11 +28,11 @@ from typing import List, Optional
     operation_id="search_image",
     summary="搜索图片",
     description=f"图片支持类型:{ALLOWED_EXTENSIONS}",
-    response_model=SearchResponse,
+    response_model=ApiResponse,
 )
 async def search_image(
     files: SearchRequest, milvus_client: MilvusDB = Depends(get_milvus_client)
-) -> SearchResponse:
+) -> ApiResponse:
     tmp_dir = os.path.join(settings.mkdtempdir, "predict")
     if not os.path.exists(tmp_dir):
         os.makedirs(tmp_dir)
@@ -59,7 +59,7 @@ async def search_image(
             search_image_service, one_image_search_dto, milvus_client
         )
 
-        return SearchResponse(
+        return ApiResponse(
             code=MessageCode.SUCCESS, msg=MessageStatus.SUCCESS, data=f"{search_data}"
         )
     except Exception as e:
@@ -67,7 +67,7 @@ async def search_image(
         logger.exception(
             f"code:{MessageCode.FAIL}, msg:{MessageStatus.FAIL}, err_msg:{err_msg}"
         )
-        return SearchResponse(
+        return ApiResponse(
             code=MessageCode.FAIL, msg=MessageStatus.FAIL, data=f"{err_msg}"
         )
 
@@ -78,12 +78,12 @@ async def search_image(
     operation_id="api_search_image",
     summary="网页图片搜索测试",
     description=f"图片支持类型:{ALLOWED_EXTENSIONS}",
-    response_model=SearchResponse,
+    response_model=ApiResponse,
 )
 async def api_search_image(
     files: List[UploadFile] = File(...),
     milvus_client: MilvusDB = Depends(get_milvus_client),
-) -> SearchResponse:
+) -> ApiResponse:
     file_status = []
     tmp_dir = os.path.join(settings.mkdtempdir, "predict")
     if not os.path.exists(tmp_dir):
@@ -128,7 +128,7 @@ async def api_search_image(
                 }
             )
 
-        return SearchResponse(
+        return ApiResponse(
             code=MessageCode.SUCCESS, msg=MessageStatus.SUCCESS, data=f"{file_status}"
         )
     except Exception as e:
@@ -136,6 +136,6 @@ async def api_search_image(
         logger.exception(
             f"code:{MessageCode.FAIL}, msg:{MessageStatus.FAIL}, err_msg:{err_msg}"
         )
-        return SearchResponse(
+        return ApiResponse(
             code=MessageCode.FAIL, msg=MessageStatus.FAIL, data=f"{err_msg}"
         )
