@@ -24,6 +24,7 @@ def create_app() -> FastAPI:
         description=settings.app_desc,
         docs_url="/api/docs",
         redoc_url="/api/redocs",
+        openapi_url="/api/openapi.json",  # 必须设置，否则文档页面无法加载
         version=settings.app_version,
         lifespan=lifespan,
     )

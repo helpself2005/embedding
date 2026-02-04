@@ -24,7 +24,13 @@ import json
 # 临时加入，抓取智能体的工具调用请求（以后需合并到中间件）
 @app.middleware("http")
 async def log_mcp_requests(request: Request, call_next):
-    if request.url.path == "/mcp":
+    # 排除文档和静态资源路径，避免影响文档页面
+    path = request.url.path
+    if path.startswith("/api/docs") or path.startswith("/api/redocs") or path.startswith("/api/openapi.json") or path.startswith("/static"):
+        response = await call_next(request)
+        return response
+    
+    if path == "/mcp":
         # 读取请求体（注意：只能读一次！）
         body = await request.body()
         try:
@@ -54,9 +60,6 @@ mcp = FastApiMCP(
     name="图像处理功能",
     description="根据场景描述，对比两张图片中的物品是否相同",
     include_operations=[
-        "api_compare_images",
-        "api_compare_images_by_path",
-        "api_compare_images_by_base64",
         "api_compare_images_by_url",
     ],
     auth_config=None,

@@ -66,43 +66,9 @@ async def check_mcp_server(url: str, timeout: float = 5.0) -> bool:
 async def main():
     # === 1. 准备两张图片的 URL ===
     # 请根据实际情况修改图片 URL
-    image1_url = "https://example.com/image1.jpg"  # 第一张图片的 URL
-    image2_url = "https://example.com/image2.jpg"  # 第二张图片的 URL
+    image1_url = "https://gips1.baidu.com/it/u=3874647369,3220417986&fm=3028&app=3028&f=JPEG&fmt=auto?w=720&h=1280"  # 第一张图片的 URL
+    image2_url = "https://gips1.baidu.com/it/u=3874647369,3220417986&fm=3028&app=3028&f=JPEG&fmt=auto?w=720&h=1280"  # 第二张图片的 URL
     
-    # 验证 URL 格式（支持 HTTP/HTTPS URL 和 data URL）
-    from urllib.parse import urlparse
-    
-    is_data_url1 = image1_url.startswith("data:image/")
-    is_data_url2 = image2_url.startswith("data:image/")
-    
-    if not is_data_url1:
-        parsed_url1 = urlparse(image1_url)
-        if not parsed_url1.scheme or not parsed_url1.netloc:
-            print(f"⚠️  警告: 图片1 URL 格式无效: {image1_url}")
-            print("请修改 image1_url 为有效的图片 URL（http:// 或 https://）或 data URL 格式")
-            image1_url = None
-        elif parsed_url1.scheme not in ["http", "https"]:
-            print(f"⚠️  警告: 图片1 URL 协议不支持: {parsed_url1.scheme}")
-            print("仅支持 http:// 或 https:// 协议，或 data URL 格式")
-            image1_url = None
-    
-    if not is_data_url2:
-        parsed_url2 = urlparse(image2_url)
-        if not parsed_url2.scheme or not parsed_url2.netloc:
-            print(f"⚠️  警告: 图片2 URL 格式无效: {image2_url}")
-            print("请修改 image2_url 为有效的图片 URL（http:// 或 https://）或 data URL 格式")
-            image2_url = None
-        elif parsed_url2.scheme not in ["http", "https"]:
-            print(f"⚠️  警告: 图片2 URL 协议不支持: {parsed_url2.scheme}")
-            print("仅支持 http:// 或 https:// 协议，或 data URL 格式")
-            image2_url = None
-    
-    if not image1_url or not image2_url:
-        print("\n❌ 请先设置正确的图片 URL 后再运行")
-        print("\n支持的格式:")
-        print("  1. HTTP/HTTPS URL: 'https://example.com/image1.jpg'")
-        print("  2. Data URL: 'data:image/jpeg;base64,xxx'")
-        return
 
     # === 2. 检查 MCP 服务器是否可用 ===
     mcp_url = "http://127.0.0.1:8080/mcp"
@@ -156,7 +122,7 @@ async def main():
     )
 
     # === 6. 准备场景描述 ===
-    scene_description = "两张图片中的报警器是同一个吗"  # 场景描述
+    scene_description = "两张图片中的企鹅是同一个吗"  # 场景描述
     
     # === 7. 使用 Agent 调用 MCP 服务（URL 模式） ===
     print("\n🤖 智能体开始对比图像（通过 MCP 服务，URL 模式）...")
@@ -166,8 +132,6 @@ async def main():
     print("-" * 50)
     
     # 构建提示词，明确告诉 agent 如何使用 MCP 工具（URL 模式）
-    url_type1 = "Data URL" if image1_url.startswith("data:image/") else "HTTP/HTTPS URL"
-    url_type2 = "Data URL" if image2_url.startswith("data:image/") else "HTTP/HTTPS URL"
     
     user_prompt = f"""我需要使用 api_compare_images_by_url 工具来对比两张图片中的物品是否相同。
 
@@ -177,8 +141,8 @@ async def main():
 - scene_description: 场景描述文本（必需）
 
 具体参数值：
-- image1_url: "{image1_url[:100]}{'...' if len(image1_url) > 100 else ''}" ({url_type1})
-- image2_url: "{image2_url[:100]}{'...' if len(image2_url) > 100 else ''}" ({url_type2})
+- image1_url: "{image1_url}"
+- image2_url: "{image2_url}"
 - scene_description: "{scene_description}"
 
 完整参数：
@@ -236,11 +200,11 @@ scene_description = "{scene_description}"
                 pass
         
         # 检查是否包含对比相关的关键词
-        if "is_same" in response_str.lower() or "对比结果" in response_str or "是否相同" in response_str:
-            print("\n" + "=" * 50)
-            print("📋 检测到对比结果（原始格式）:")
-            print(response_str)
-            print("=" * 50)
+        # if "is_same" in response_str.lower() or "对比结果" in response_str or "是否相同" in response_str:
+        #     print("\n" + "=" * 50)
+        #     print("📋 检测到对比结果（原始格式）:")
+        #     print(response_str)
+        #     print("=" * 50)
             
     except Exception as e:
         print(f"💥 Agent 执行失败: {e}")
