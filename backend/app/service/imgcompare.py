@@ -22,7 +22,7 @@ from backend.utils.process import (
     validate_image,
     image_to_data_url,
 )
-from backend.app.schema.imgcompare import ImageCompareDTO, ImageCompareResult, ImageCompareByURLDTO
+from backend.app.schema.imgcompare import ImageCompareDTO, ImageCompareResult, ImageCompareByURLDTO, ImageCompareByLocalURLDTO
 from backend.core.configs import settings
 from backend.core.logs.logger import logger
 
@@ -425,4 +425,189 @@ def compare_images_by_url_service(url_compare_dto: ImageCompareByURLDTO) -> Imag
         raise e
     except Exception as e:
         logger.error(f"通过 URL 图片对比服务异常: {e}")
+        raise e
+
+
+def compare_images_by_local_url_service(local_url_compare_dto: ImageCompareByLocalURLDTO) -> ImageCompareResult:
+    """
+    通过本地文件路径对比两张图片中的物品是否相同
+    
+    读取本地文件路径的图片，转换为 data URL 格式后调用大模型进行对比。
+    
+    Args:
+        local_url_compare_dto: 包含两张图片本地路径和场景描述的 DTO
+        
+    Returns:
+        ImageCompareResult: 对比结果，包含是否相同、置信度和理由
+        
+    Raises:
+        FileNotFoundError: 文件不存在时抛出
+        ValueError: 文件路径无效或图片格式不支持时抛出
+        Exception: 调用大模型失败时抛出异常
+    """
+    try:
+        logger.info(f"通过本地文件路径对比图片: image1_local_url={local_url_compare_dto.image1_local_url}, image2_local_url={local_url_compare_dto.image2_local_url}, scene_description={local_url_compare_dto.scene_description}")
+        
+        # 读取本地文件并转换为 data URL
+        image1_path = Path(local_url_compare_dto.image1_local_url)
+        image2_path = Path(local_url_compare_dto.image2_local_url)
+        
+        # 检查文件是否存在
+        if not image1_path.exists():
+            raise FileNotFoundError(f"第一张图片文件不存在: {image1_path}")
+        if not image2_path.is_file():
+            raise ValueError(f"第一张图片路径不是文件: {image1_path}")
+            
+        if not image2_path.exists():
+            raise FileNotFoundError(f"第二张图片文件不存在: {image2_path}")
+        if not image2_path.is_file():
+            raise ValueError(f"第二张图片路径不是文件: {image2_path}")
+        
+        # 读取文件数据
+        with open(image1_path, "rb") as f1:
+            image1_data = f1.read()
+        with open(image2_path, "rb") as f2:
+            image2_data = f2.read()
+        
+        # 验证图片格式
+        if not validate_image(image1_data):
+            raise ValueError(f"第一张图片文件格式无效: {image1_path}")
+        if not validate_image(image2_data):
+            raise ValueError(f"第二张图片文件格式无效: {image2_path}")
+        
+        # 获取 MIME 类型
+        image1_type, _ = mimetypes.guess_type(str(image1_path))
+        image2_type, _ = mimetypes.guess_type(str(image2_path))
+        
+        # 如果无法识别，使用默认值
+        if not image1_type:
+            ext = image1_path.suffix.lower()
+            if ext in [".jpg", ".jpeg"]:
+                image1_type = "image/jpeg"
+            elif ext == ".png":
+                image1_type = "image/png"
+            elif ext == ".bmp":
+                image1_type = "image/bmp"
+            else:
+                image1_type = "image/jpeg"
+        
+        if not image2_type:
+            ext = image2_path.suffix.lower()
+            if ext in [".jpg", ".jpeg"]:
+                image2_type = "image/jpeg"
+            elif ext == ".png":
+                image2_type = "image/png"
+            elif ext == ".bmp":
+                image2_type = "image/bmp"
+            else:
+                image2_type = "image/jpeg"
+        
+        # 转换为 data URL 格式
+        image1_data_url = image_to_data_url(image1_data, image1_type)
+        image2_data_url = image_to_data_url(image2_data, image2_type)
+        
+        logger.info(f"本地文件已转换为 data URL，准备调用大模型进行对比")
+        
+        # 构建 prompt
+        prompt = f"""你是一个专业的图像对比分析专家。请分析以下两张图片，根据场景描述判断它们中的物品是否是同一个。
+
+场景描述：{local_url_compare_dto.scene_description}
+
+请仔细对比两张图片中的物品特征，包括但不限于：
+- 外观特征（颜色、形状、大小、纹理等）
+- 位置和角度
+- 场景上下文
+
+请以JSON格式返回结果，格式如下：
+{{
+    "is_same": true/false,
+    "confidence": 0.0-1.0之间的浮点数,
+    "reason": "详细的判断理由"
+}}
+
+只返回JSON，不要包含其他文字说明。"""
+
+        # 构建多模态消息，使用 data URL
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"image": image1_data_url},
+                    {"image": image2_data_url},
+                    {"text": prompt}
+                ]
+            }
+        ]
+        
+        # 调用 DashScope 多模态对话 API
+        logger.info(f"调用 qwen3-vl-flash 模型进行图片对比")
+        dashscope.api_key = settings.dashscope_embedding_api_key
+        
+        response = MultiModalConversation.call(
+            model=settings.dashscope_vl_model,
+            messages=messages,
+        )
+        
+        if response.status_code != 200:
+            error_msg = f"DashScope API 调用失败: status_code={response.status_code}, message={response.message}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
+        
+        # 解析响应
+        result_text = ""
+        if hasattr(response, "output") and response.output:
+            if isinstance(response.output, dict):
+                if "choices" in response.output:
+                    choice = response.output["choices"][0]
+                    if "message" in choice:
+                        content = choice["message"].get("content", [])
+                        if isinstance(content, list):
+                            for item in content:
+                                if isinstance(item, dict) and item.get("type") == "text":
+                                    result_text = item.get("text", "")
+                                    break
+                        elif isinstance(content, str):
+                            result_text = content
+                elif "text" in response.output:
+                    result_text = response.output["text"]
+            elif isinstance(response.output, str):
+                result_text = response.output
+        
+        if not result_text:
+            error_msg = "无法从 API 响应中提取结果文本"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        
+        logger.info(f"模型返回内容: {result_text}")
+        
+        # 解析 JSON 结果
+        try:
+            # 尝试直接解析 JSON
+            result_json = json.loads(result_text)
+        except json.JSONDecodeError:
+            # 如果直接解析失败，尝试从文本中提取 JSON
+            json_match = re.search(r'\{[^{}]*"is_same"[^{}]*"confidence"[^{}]*"reason"[^{}]*\}', result_text, re.DOTALL)
+            if json_match:
+                result_json = json.loads(json_match.group(0))
+            else:
+                raise ValueError(f"无法从响应中解析 JSON: {result_text}")
+        
+        # 构建结果对象
+        result = ImageCompareResult(
+            is_same=result_json.get("is_same", False),
+            confidence=float(result_json.get("confidence", 0.0)),
+            reason=result_json.get("reason", "")
+        )
+        
+        logger.info(f"通过本地文件路径图片对比完成，结果: is_same={result.is_same}, confidence={result.confidence}")
+        return result
+        
+    except FileNotFoundError as e:
+        logger.error(f"文件不存在: {e}")
+        raise e
+    except ValueError as e:
+        logger.error(f"参数验证失败: {e}")
+        raise e
+    except Exception as e:
+        logger.error(f"通过本地文件路径图片对比服务异常: {e}")
         raise e

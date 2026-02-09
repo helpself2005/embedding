@@ -109,6 +109,14 @@ class Settings(BaseSettings):
     milvus_vector_dim: Optional[int] = Field(default=1152, env="MILVUS_VECTOR_DIM")
     milvus_auto_id: Optional[bool] = Field(default=True, env="MILVUS_AUPO_ID")
 
+    # MinIO配置
+    minio_endpoint: Optional[str] = Field(default="101.42.31.155:9000", env="MINIO_ENDPOINT")
+    minio_access_key: Optional[str] = Field(default=None, env="MINIO_ACCESS_KEY")
+    minio_secret_key: Optional[str] = Field(default=None, env="MINIO_SECRET_KEY")
+    minio_secure: Optional[bool] = Field(default=False, env="MINIO_SECURE")  # 是否使用HTTPS
+    minio_bucket_name: Optional[str] = Field(default="images", env="MINIO_BUCKET_NAME")
+    minio_region: Optional[str] = Field(default=None, env="MINIO_REGION")
+
     def __init__(self):
         """初始化配置"""
         # Nacos 配置已在 lifespan 中初始化，这里直接调用父类初始化

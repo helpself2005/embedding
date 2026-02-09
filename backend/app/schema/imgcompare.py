@@ -27,6 +27,13 @@ class ImageCompareByURLDTO(BaseModel):
     scene_description: str = Field(..., description="场景描述信息")
 
 
+class ImageCompareByLocalURLDTO(BaseModel):
+    """通过本地URL对比图片的请求DTO"""
+    image1_local_url: str = Field(..., description="第一张图片的本地URL地址")
+    image2_local_url: str = Field(..., description="第二张图片的本地URL地址")
+    scene_description: str = Field(..., description="场景描述信息")
+
+
 class ImageCompareResponse(BaseModel):
     """图片对比响应DTO"""
     code: int = Field(200, description="状态码")
