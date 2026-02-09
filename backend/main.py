@@ -61,6 +61,7 @@ mcp = FastApiMCP(
     description="根据场景描述，对比两张图片中的物品是否相同",
     include_operations=[
         "api_compare_images_by_url",
+        "api_compare_images_by_local_url",
     ],
     auth_config=None,
     # 将所有可能的响应 schema 放入描述

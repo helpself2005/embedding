@@ -428,14 +428,88 @@ def compare_images_by_url_service(url_compare_dto: ImageCompareByURLDTO) -> Imag
         raise e
 
 
-def compare_images_by_local_url_service(local_url_compare_dto: ImageCompareByLocalURLDTO) -> ImageCompareResult:
+def _load_image_from_url_or_path(url_or_path: str) -> tuple[bytes, str]:
     """
-    通过本地文件路径对比两张图片中的物品是否相同
+    从 URL 或本地文件路径加载图片
     
-    读取本地文件路径的图片，转换为 data URL 格式后调用大模型进行对比。
+    支持：
+    1. HTTP/HTTPS URL: 从网络下载图片
+    2. Data URL: data:image/jpeg;base64,xxx 格式，直接解析
+    3. 本地文件路径: 读取本地文件
     
     Args:
-        local_url_compare_dto: 包含两张图片本地路径和场景描述的 DTO
+        url_or_path: 图片的 URL 地址或本地文件路径
+        
+    Returns:
+        tuple: (图片字节数据, MIME类型)
+        
+    Raises:
+        FileNotFoundError: 本地文件不存在时抛出
+        ValueError: URL 无效或图片格式不支持时抛出
+        ConnectionError: 网络连接失败时抛出
+    """
+    # 检查是否是 HTTP/HTTPS URL
+    if url_or_path.startswith("http://") or url_or_path.startswith("https://"):
+        logger.info(f"检测到 HTTP/HTTPS URL，开始下载: {url_or_path}")
+        image_data, mime_type = download_image_from_url(url_or_path)
+        return image_data, mime_type
+    
+    # 检查是否是 data URL 格式
+    if url_or_path.startswith("data:image/"):
+        logger.info(f"检测到 data URL 格式，直接解析")
+        image_data, mime_type = download_image_from_url(url_or_path)
+        return image_data, mime_type
+    
+    # 否则视为本地文件路径
+    image_path = Path(url_or_path)
+    
+    # 检查文件是否存在
+    if not image_path.exists():
+        raise FileNotFoundError(f"图片文件不存在: {image_path}")
+    if not image_path.is_file():
+        raise ValueError(f"路径不是文件: {image_path}")
+    
+    # 读取文件数据
+    logger.info(f"读取本地文件: {image_path}")
+    with open(image_path, "rb") as f:
+        image_data = f.read()
+    
+    # 验证图片格式
+    if not validate_image(image_data):
+        raise ValueError(f"图片文件格式无效: {image_path}")
+    
+    # 获取 MIME 类型
+    mime_type, _ = mimetypes.guess_type(str(image_path))
+    
+    # 如果无法识别，使用默认值
+    if not mime_type:
+        ext = image_path.suffix.lower()
+        if ext in [".jpg", ".jpeg"]:
+            mime_type = "image/jpeg"
+        elif ext == ".png":
+            mime_type = "image/png"
+        elif ext == ".bmp":
+            mime_type = "image/bmp"
+        else:
+            mime_type = "image/jpeg"
+    
+    logger.info(f"本地文件读取成功: 大小={len(image_data)} 字节, MIME类型={mime_type}")
+    return image_data, mime_type
+
+
+def compare_images_by_local_url_service(local_url_compare_dto: ImageCompareByLocalURLDTO) -> ImageCompareResult:
+    """
+    通过本地文件路径或 URL 对比两张图片中的物品是否相同
+    
+    支持：
+    1. HTTP/HTTPS URL: 从网络下载图片
+    2. Data URL: data:image/jpeg;base64,xxx 格式，直接解析
+    3. 本地文件路径: 读取本地文件
+    
+    读取或下载图片后，转换为 data URL 格式，然后调用大模型进行对比。
+    
+    Args:
+        local_url_compare_dto: 包含两张图片 URL/路径和场景描述的 DTO
         
     Returns:
         ImageCompareResult: 对比结果，包含是否相同、置信度和理由
@@ -446,67 +520,17 @@ def compare_images_by_local_url_service(local_url_compare_dto: ImageCompareByLoc
         Exception: 调用大模型失败时抛出异常
     """
     try:
-        logger.info(f"通过本地文件路径对比图片: image1_local_url={local_url_compare_dto.image1_local_url}, image2_local_url={local_url_compare_dto.image2_local_url}, scene_description={local_url_compare_dto.scene_description}")
+        logger.info(f"通过 URL/路径对比图片: image1_local_url={local_url_compare_dto.image1_local_url}, image2_local_url={local_url_compare_dto.image2_local_url}, scene_description={local_url_compare_dto.scene_description}")
         
-        # 读取本地文件并转换为 data URL
-        image1_path = Path(local_url_compare_dto.image1_local_url)
-        image2_path = Path(local_url_compare_dto.image2_local_url)
-        
-        # 检查文件是否存在
-        if not image1_path.exists():
-            raise FileNotFoundError(f"第一张图片文件不存在: {image1_path}")
-        if not image2_path.is_file():
-            raise ValueError(f"第一张图片路径不是文件: {image1_path}")
-            
-        if not image2_path.exists():
-            raise FileNotFoundError(f"第二张图片文件不存在: {image2_path}")
-        if not image2_path.is_file():
-            raise ValueError(f"第二张图片路径不是文件: {image2_path}")
-        
-        # 读取文件数据
-        with open(image1_path, "rb") as f1:
-            image1_data = f1.read()
-        with open(image2_path, "rb") as f2:
-            image2_data = f2.read()
-        
-        # 验证图片格式
-        if not validate_image(image1_data):
-            raise ValueError(f"第一张图片文件格式无效: {image1_path}")
-        if not validate_image(image2_data):
-            raise ValueError(f"第二张图片文件格式无效: {image2_path}")
-        
-        # 获取 MIME 类型
-        image1_type, _ = mimetypes.guess_type(str(image1_path))
-        image2_type, _ = mimetypes.guess_type(str(image2_path))
-        
-        # 如果无法识别，使用默认值
-        if not image1_type:
-            ext = image1_path.suffix.lower()
-            if ext in [".jpg", ".jpeg"]:
-                image1_type = "image/jpeg"
-            elif ext == ".png":
-                image1_type = "image/png"
-            elif ext == ".bmp":
-                image1_type = "image/bmp"
-            else:
-                image1_type = "image/jpeg"
-        
-        if not image2_type:
-            ext = image2_path.suffix.lower()
-            if ext in [".jpg", ".jpeg"]:
-                image2_type = "image/jpeg"
-            elif ext == ".png":
-                image2_type = "image/png"
-            elif ext == ".bmp":
-                image2_type = "image/bmp"
-            else:
-                image2_type = "image/jpeg"
+        # 加载两张图片（支持 URL 或本地路径）
+        image1_data, image1_type = _load_image_from_url_or_path(local_url_compare_dto.image1_local_url)
+        image2_data, image2_type = _load_image_from_url_or_path(local_url_compare_dto.image2_local_url)
         
         # 转换为 data URL 格式
         image1_data_url = image_to_data_url(image1_data, image1_type)
         image2_data_url = image_to_data_url(image2_data, image2_type)
         
-        logger.info(f"本地文件已转换为 data URL，准备调用大模型进行对比")
+        logger.info(f"图片已转换为 data URL，准备调用大模型进行对比")
         
         # 构建 prompt
         prompt = f"""你是一个专业的图像对比分析专家。请分析以下两张图片，根据场景描述判断它们中的物品是否是同一个。

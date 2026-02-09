@@ -64,11 +64,11 @@ async def check_mcp_server(url: str, timeout: float = 5.0) -> bool:
 
 
 async def main():
-    # === 1. 准备两张图片的 URL ===
-    # 请根据实际情况修改图片 URL
-    image1_url = "http://101.42.31.155:9000/images/uploads/2026-02-09/9c301b8d-报警器1.jpeg"  # 第一张图片的 URL
-    image2_url = "http://101.42.31.155:9000/images/uploads/2026-02-09/8298f107-1c8a03c7e76748f0b8ea11522b06460c_watermarked_20251204145232A314.jpeg"  # 第二张图片的 URL
-    
+    # === 1. 准备两张图片的 URL 或本地路径 ===
+    # 支持 HTTP/HTTPS URL 或本地文件路径
+    # 示例1: 使用 HTTP URL（MinIO 或其他服务器）
+    image1_local_url = "http://101.42.31.155:9000/images/uploads/2026-02-09/9c301b8d-报警器1.jpeg"
+    image2_local_url = "http://101.42.31.155:9000/images/uploads/2026-02-09/8298f107-1c8a03c7e76748f0b8ea11522b06460c_watermarked_20251204145232A314.jpeg"
 
     # === 2. 检查 MCP 服务器是否可用 ===
     mcp_url = "http://127.0.0.1:8080/mcp"
@@ -92,11 +92,13 @@ async def main():
         id="qwen-plus",  # 模型名称，可选: qwen-plus, qwen-max, qwen-turbo, qwen-flash 等
         api_key=settings.dashscope_embedding_api_key,  # 使用配置文件中的 API Key
         base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",  # DashScope OpenAI 兼容端点
+        timeout=120.0,  # 增加超时时间
     )
     
     print(f"\n🤖 使用模型: qwen-plus")
     print(f"🔑 API Key: {settings.dashscope_embedding_api_key[:10]}...")
     print(f"🌐 Base URL: https://dashscope.aliyuncs.com/compatible-mode/v1")
+    print(f"⏱️  超时时间: 120 秒")
 
     # === 4. 连接 MCP 工具 ===
     mcp_tools = None
@@ -124,38 +126,42 @@ async def main():
     # === 6. 准备场景描述 ===
     scene_description = "两张图片中的报警器是同一个吗"  # 场景描述
     
-    # === 7. 使用 Agent 调用 MCP 服务（URL 模式） ===
-    print("\n🤖 智能体开始对比图像（通过 MCP 服务，URL 模式）...")
-    print(f"📷 图片1 URL: {image1_url}")
-    print(f"📷 图片2 URL: {image2_url}")
+    # === 7. 使用 Agent 调用 MCP 服务（本地 URL/路径 模式） ===
+    print("\n🤖 智能体开始对比图像（通过 MCP 服务，本地 URL/路径 模式）...")
+    print(f"📷 图片1 URL/路径: {image1_local_url}")
+    print(f"📷 图片2 URL/路径: {image2_local_url}")
     print(f"📝 场景描述: {scene_description}")
     print("-" * 50)
     
-    # 构建提示词，明确告诉 agent 如何使用 MCP 工具（URL 模式）
-    
-    user_prompt = f"""我需要使用 api_compare_images_by_url 工具来对比两张图片中的物品是否相同。
+    # 构建提示词，明确告诉 agent 如何使用 MCP 工具（本地 URL/路径 模式）
+    user_prompt = f"""我需要使用 api_compare_images_by_local_url 工具来对比两张图片中的物品是否相同。
 
 工具参数说明：
-- image1_url: 第一张图片的 URL 地址（必需，支持 HTTP/HTTPS URL 或 data URL 格式）
-- image2_url: 第二张图片的 URL 地址（必需，支持 HTTP/HTTPS URL 或 data URL 格式）
+- image1_local_url: 第一张图片的 URL 地址或本地文件路径（必需，支持 HTTP/HTTPS URL 或本地文件路径）
+- image2_local_url: 第二张图片的 URL 地址或本地文件路径（必需，支持 HTTP/HTTPS URL 或本地文件路径）
 - scene_description: 场景描述文本（必需）
 
 具体参数值：
-- image1_url: "{image1_url}"
-- image2_url: "{image2_url}"
+- image1_local_url: "{image1_local_url}"
+- image2_local_url: "{image2_local_url}"
 - scene_description: "{scene_description}"
 
 完整参数：
-image1_url = "{image1_url}"
-image2_url = "{image2_url}"
+image1_local_url = "{image1_local_url}"
+image2_local_url = "{image2_local_url}"
 scene_description = "{scene_description}"
 
-请调用 api_compare_images_by_url 工具，传入上述三个参数。工具会自动从 URL 下载图片（如果是 HTTP/HTTPS URL）或直接解析（如果是 data URL）并进行对比。"""
+请调用 api_compare_images_by_local_url 工具，传入上述三个参数。工具会自动从 URL 下载图片（如果是 HTTP/HTTPS URL）或读取本地文件（如果是本地路径）并进行对比。"""
     
     try:
-        # 使用 agent 调用 MCP 工具
-        response = await agent.arun(
-            user_prompt,
+        print("⏳ 正在调用 Agent...")
+        print(f"   预计处理时间: 10-60 秒（取决于图片大小和模型响应速度）")
+        print("   正在等待 Agent 响应...")
+        
+        # 使用 agent 调用 MCP 工具，添加超时
+        response = await asyncio.wait_for(
+            agent.arun(user_prompt),
+            timeout=180.0  # 3分钟超时
         )
         
         print("\n💬 Agent 响应:")
@@ -173,10 +179,20 @@ scene_description = "{scene_description}"
             print("\n🔧 工具执行结果:")
             for tool_exec in response.tools:
                 print(f"   工具: {tool_exec.tool_name}")
-                print(f"   参数: {tool_exec.tool_args}")
-                print(f"   结果: {tool_exec.result}")
+                tool_args_str = str(tool_exec.tool_args)
+                print(f"   参数长度: {len(tool_args_str)} 字符")
+                print(f"   参数预览: {tool_args_str[:300]}...")  # 只显示前300字符
+                result_str = str(tool_exec.result)
+                print(f"   结果长度: {len(result_str)} 字符")
+                print(f"   结果预览: {result_str[:500]}...")  # 只显示前500字符
                 if tool_exec.tool_call_error:
-                    print(f"   ⚠️  工具调用出错")
+                    print(f"   ⚠️  工具调用出错: {tool_exec.tool_call_error}")
+        else:
+            print("⚠️  未检测到工具执行结果")
+            print("   可能原因:")
+            print("   1. Agent 没有调用工具")
+            print("   2. 工具调用失败")
+            print("   3. 工具调用超时")
         
         # 尝试从响应中提取对比结果
         response_str = str(response)
@@ -185,29 +201,43 @@ scene_description = "{scene_description}"
         import json
         import re
         
-        # 查找 JSON 格式的结果
-        json_match = re.search(r'\{[^{}]*"is_same"[^{}]*\}', response_str, re.DOTALL)
-        if json_match:
-            try:
-                result_json = json.loads(json_match.group(0))
-                print("\n" + "=" * 50)
-                print("📋 对比结果:")
-                print(f"   是否相同: {'✅ 是' if result_json.get('is_same') else '❌ 否'}")
-                print(f"   置信度: {result_json.get('confidence', 0):.2%}")
-                print(f"   理由: {result_json.get('reason', '')}")
-                print("=" * 50)
-            except:
-                pass
+        # 查找 JSON 格式的结果（更宽松的匹配）
+        json_patterns = [
+            r'\{[^{}]*"is_same"[^{}]*"confidence"[^{}]*"reason"[^{}]*\}',
+            r'\{[^{}]*"is_same"[^{}]*\}',
+        ]
+        
+        for pattern in json_patterns:
+            json_match = re.search(pattern, response_str, re.DOTALL)
+            if json_match:
+                try:
+                    result_json = json.loads(json_match.group(0))
+                    print("\n" + "=" * 50)
+                    print("📋 对比结果:")
+                    print(f"   是否相同: {'✅ 是' if result_json.get('is_same') else '❌ 否'}")
+                    print(f"   置信度: {result_json.get('confidence', 0):.2%}")
+                    print(f"   理由: {result_json.get('reason', '')}")
+                    print("=" * 50)
+                    break
+                except:
+                    continue
         
         # 检查是否包含对比相关的关键词
-        # if "is_same" in response_str.lower() or "对比结果" in response_str or "是否相同" in response_str:
-        #     print("\n" + "=" * 50)
-        #     print("📋 检测到对比结果（原始格式）:")
-        #     print(response_str)
-        #     print("=" * 50)
+        if "is_same" in response_str.lower() or "对比结果" in response_str or "是否相同" in response_str:
+            print("\n" + "=" * 50)
+            print("📋 检测到对比结果（原始格式）:")
+            # 只显示前1000字符，避免输出过长
+            print(response_str[:1000] + ("..." if len(response_str) > 1000 else ""))
+            print("=" * 50)
             
+    except asyncio.TimeoutError:
+        print(f"\n⏱️  Agent 执行超时（超过 180 秒）")
+        print(f"   可能原因:")
+        print(f"   1. 图片下载时间过长")
+        print(f"   2. 模型响应较慢")
+        print(f"   3. 网络延迟")
     except Exception as e:
-        print(f"💥 Agent 执行失败: {e}")
+        print(f"\n💥 Agent 执行失败: {e}")
         import traceback
         traceback.print_exc()
     finally:
