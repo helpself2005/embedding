@@ -17,6 +17,7 @@ from backend.storage.milvus_client import MilvusDB
 from backend.storage.minio_client import get_minio_client
 from backend.app.api.depends import get_milvus_client
 from backend.app.service.imginsert import insert_image_service
+from backend.utils.stringutils import sanitize_folder_name, sanitize_filename
 
 ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".bmp"]
 
@@ -108,11 +109,12 @@ async def api_upload_image(
             # 先上传到 MinIO
             try:
                 # 生成对象名称（文件路径）：分类文件夹/日期/uuid-文件名
-                folder_path = file_category or "uploads"
+                # 将中文分类名和文件名转换为英文
+                folder_path = sanitize_folder_name(file_category or "uploads")
                 date_folder = datetime.now().strftime("%Y-%m-%d")
                 file_uuid = str(uuid.uuid4())[:8]
-                file_basename = os.path.basename(uploaded_file.filename)
-                object_name = f"{folder_path}/{date_folder}/{file_uuid}-{file_basename}"
+                sanitized_filename = sanitize_filename(uploaded_file.filename)
+                object_name = f"{folder_path}/{date_folder}/{file_uuid}-{sanitized_filename}"
                 
                 # 上传到 MinIO 并获取文件访问地址
                 file_url = minio_client.upload_file(

@@ -12,6 +12,7 @@ from backend.app.schema import ApiResponse
 from backend.core.errors import MessageCode, MessageStatus
 from backend.core.logs.logger import logger
 from backend.storage.minio_client import get_minio_client
+from backend.utils.stringutils import sanitize_folder_name, sanitize_filename
 
 ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".bmp"]
 
@@ -64,8 +65,13 @@ async def api_upload_to_minio(
                 
                 # 生成对象名称（文件路径）
                 # 格式: folder/yyyy-MM-dd/uuid-filename
+                # 将中文文件夹路径和文件名转换为英文
                 if folder:
-                    folder_path = folder.strip("/")  # 移除首尾斜杠
+                    folder_path_raw = folder.strip("/")  # 移除首尾斜杠
+                    # 处理多层路径：对每一层文件夹名称进行清理
+                    folder_parts = folder_path_raw.split("/")
+                    sanitized_parts = [sanitize_folder_name(part) for part in folder_parts]
+                    folder_path = "/".join(sanitized_parts)
                 else:
                     folder_path = "uploads"
                 
@@ -74,8 +80,8 @@ async def api_upload_to_minio(
                 
                 # 生成唯一文件名（避免文件名冲突）
                 file_uuid = str(uuid.uuid4())[:8]
-                file_basename = os.path.basename(uploaded_file.filename)
-                object_name = f"{folder_path}/{date_folder}/{file_uuid}-{file_basename}"
+                sanitized_filename = sanitize_filename(uploaded_file.filename)
+                object_name = f"{folder_path}/{date_folder}/{file_uuid}-{sanitized_filename}"
                 
                 # 上传到 MinIO
                 file_url = minio_client.upload_file(

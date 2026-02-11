@@ -1,5 +1,14 @@
 import os
+import sys
 import copy
+from pathlib import Path
+
+# 如果是直接运行此文件，添加项目根目录到 Python 路径
+if __name__ == "__main__" or not any("backend" in p for p in sys.path):
+    project_root = Path(__file__).parent.parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
 from pymilvus import MilvusClient, DataType
 from dotenv import load_dotenv
 from backend.core.configs import settings
@@ -133,6 +142,47 @@ class MilvusDB:
           
         return filtered_results
 
+    def delete_collection(self, collection_name: str = None) -> bool:
+        """
+        删除指定的 Milvus collection
+        
+        Args:
+            collection_name: Collection 名称，如果为 None 则使用默认的 collection_name
+        
+        Returns:
+            bool: 删除是否成功
+        
+        Raises:
+            Exception: 删除 collection 失败时抛出异常
+        """
+        try:
+            collection_name = collection_name or self.collection_name
+            
+            if not collection_name:
+                logger.error("[Milvus] 删除 collection 失败: collection_name 不能为空")
+                return False
+            
+            # 检查 collection 是否存在
+            if not self.client.has_collection(collection_name):
+                logger.warning(f"[Milvus] Collection '{collection_name}' 不存在，无需删除")
+                return False
+            
+            # 如果 collection 已加载，先卸载
+            try:
+                self.client.release_collection(collection_name=collection_name)
+                logger.info(f"[Milvus] Collection '{collection_name}' 已卸载")
+            except Exception as e:
+                logger.warning(f"[Milvus] 卸载 collection '{collection_name}' 时出现警告: {e}")
+            
+            # 删除 collection
+            self.client.drop_collection(collection_name=collection_name)
+            logger.info(f"[Milvus] Collection '{collection_name}' 删除成功")
+            return True
+            
+        except Exception as e:
+            logger.error(f"[Milvus] 删除 collection '{collection_name}' 失败: {e}")
+            raise
+
 def create_milvus_client(
     host: str = None,
     port: str = None,
@@ -153,3 +203,31 @@ def create_milvus_client(
     milvus_client = MilvusDB()
     milvus_client.init_milvus_db(host, port, collection_name, vector_dim, auto_id)
     return milvus_client
+
+
+if __name__ == "__main__":
+    """
+    主方法：删除名为 'imagesearch' 的 collection
+    """
+    try:
+        # 创建 MilvusDB 实例
+        milvus_db = MilvusDB()
+        
+        # 创建 MilvusClient 连接（仅连接，不创建 collection）
+        milvus_uri = f"http://{milvus_db.host}:{milvus_db.port}"
+        logger.info(f"[Milvus] 正在连接到 {milvus_uri}")
+        milvus_db.client = MilvusClient(uri=milvus_uri)
+        
+        # 删除名为 'imagesearch' 的 collection
+        collection_name = "product_image"
+        logger.info(f"[Milvus] 准备删除 collection: {collection_name}")
+        result = milvus_db.delete_collection(collection_name=collection_name)
+        
+        if result:
+            print(f"✓ Collection '{collection_name}' 删除成功")
+        else:
+            print(f"✗ Collection '{collection_name}' 删除失败或不存在")
+            
+    except Exception as e:
+        logger.exception(f"删除 collection 时发生错误: {e}")
+        print(f"✗ 删除 collection 时发生错误: {e}")
