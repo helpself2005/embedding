@@ -76,7 +76,8 @@ class MilvusDB:
             schema.add_field(field_name="class_id", datatype=DataType.VARCHAR, max_length=1024)
             schema.add_field(field_name="class_name", datatype=DataType.VARCHAR, max_length=1024)
             schema.add_field(field_name="file_path", datatype=DataType.VARCHAR, max_length=1024)
-            schema.add_field(field_name="file_content", datatype=DataType.VARCHAR, max_length=8192)
+            schema.add_field(field_name="file_description", datatype=DataType.VARCHAR, max_length=8192)  # 文件描述信息
+            schema.add_field(field_name="file_url", datatype=DataType.VARCHAR, max_length=2048)  # 文件访问 URL
             schema.add_field(field_name="vector", datatype=DataType.FLOAT_VECTOR, dim=vector_dim)
 
             
@@ -121,7 +122,7 @@ class MilvusDB:
                 collection_name=collection_name,
                 data=[data],  # 查询向量列表
                 limit=top_k,  # 返回 top_k 个结果
-                output_fields=[ "class_id", "class_name", "file_path", "file_content"]  # 返回的字段
+                output_fields=["class_name", "file_path", "file_description", "file_url"]  # 返回的字段
             )
         
         filtered_results = [
@@ -130,7 +131,7 @@ class MilvusDB:
         ]
 
           
-        return filtered_results[0]
+        return filtered_results
 
 def create_milvus_client(
     host: str = None,

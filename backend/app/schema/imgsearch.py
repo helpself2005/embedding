@@ -11,7 +11,8 @@ class OneImageUploadDTO(BaseModel):
     file_data: bytes = b""
     file_type: str = ""
     file_class: str = "test"
-    file_content: str = ""  # 文件描述信息，用于存储到 Milvus
+    file_description: str = ""  # 文件描述信息，用于存储到 Milvus
+    file_url: str = ""  # 文件访问 URL，用于存储到 Milvus
 
 
 class OneImageSearchDTO(BaseModel):

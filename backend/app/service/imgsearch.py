@@ -35,7 +35,7 @@ def search_image_service(
 
 		embedding = vector_response.get("output", [])
 		
-		resp = milvus_client.search_data(embedding, top_k=5, cosine=0.25)
+		resp = milvus_client.search_data(embedding, top_k=5, cosine=0.5)
 		
 
 		return resp

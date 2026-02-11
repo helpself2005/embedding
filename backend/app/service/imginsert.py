@@ -38,11 +38,13 @@ def insert_image_service(
 
 		embedding = vector_response.get("output", [])
 		
+		
 		data_raw = [{
 				"class_id": compute_mdhash_id(image_dto.file_class),
 				"class_name": image_dto.file_class,
 				"file_path": image_dto.file_name,
-				"file_content": image_dto.file_content,  # 使用 DTO 中的描述信息
+				"file_description": image_dto.file_description,  # 文件描述信息
+				"file_url": image_dto.file_url,  # 文件访问 URL
 				"vector": embedding,
 			}]
 
