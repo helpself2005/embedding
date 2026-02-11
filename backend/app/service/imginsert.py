@@ -10,7 +10,7 @@ from backend.utils.mdhash import (
 )
 from backend.core.configs import settings
 from backend.core.logs.logger import logger
-from backend.storage.vdb.milvusdb import MilvusDB
+from backend.storage.milvus_client import MilvusDB
 from backend.app.service.vectorize import vectorize_image
 
 def insert_image_service(
@@ -42,7 +42,7 @@ def insert_image_service(
 				"class_id": compute_mdhash_id(image_dto.file_class),
 				"class_name": image_dto.file_class,
 				"file_path": image_dto.file_name,
-				"file_content": "",
+				"file_content": image_dto.file_content,  # 使用 DTO 中的描述信息
 				"vector": embedding,
 			}]
 
@@ -57,7 +57,7 @@ def insert_image_service(
 
 if __name__ == "__main__":
 	jpgfile = open("C:\\workspace\\python\\web_search\\backend\\app\\service\\GTY-CXF.png", "rb")
-	image_dto = OneImageUploadDTO(**{"file_data":jpgfile.read(), "file_name":"test.jpg", "file_type": "image/jpeg",  "file_class": "0"})
+	image_dto = OneImageUploadDTO(**{"file_data":jpgfile.read(), "file_name":"test.jpg", "file_type": "image/jpeg",  "file_class": "0","file_content": "test"})
 	result = insert_image(image_dto)
 	print(f"result:{result}")
 

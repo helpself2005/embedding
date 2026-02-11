@@ -12,7 +12,7 @@ from backend.core.errors import *
 from backend.app.service.imgsearch import search_image_service
 from backend.core.logs.logger import logger
 from backend.core.configs.config import settings
-from backend.storage.vdb.milvusdb import MilvusDB
+from backend.storage.milvus_client import MilvusDB
 from backend.app.api.depends import get_milvus_client
 
 ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".bmp"]

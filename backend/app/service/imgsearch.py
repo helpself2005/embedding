@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from backend.app.schema import *
 from backend.core.configs import settings
 from backend.core.logs.logger import logger
-from backend.storage.vdb.milvusdb import MilvusDB
+from backend.storage.milvus_client import MilvusDB
 from backend.app.service.vectorize import vectorize_image
 
 def search_image_service(

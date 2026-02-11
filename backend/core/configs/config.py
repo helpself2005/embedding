@@ -104,7 +104,7 @@ class Settings(BaseSettings):
     milvus_username: Optional[str] = Field(default=None, env="MILVUS_USERNAME")
     milvus_password: Optional[str] = Field(default=None, env="MILVUS_PASSWORD")
     milvus_collection_name: Optional[str] = Field(
-        default="imagesearch", env="MILVUS_COLLECTION_NAME"
+        default="product_image", env="MILVUS_COLLECTION_NAME"
     )
     milvus_vector_dim: Optional[int] = Field(default=1152, env="MILVUS_VECTOR_DIM")
     milvus_auto_id: Optional[bool] = Field(default=True, env="MILVUS_AUPO_ID")

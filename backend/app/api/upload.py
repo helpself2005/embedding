@@ -11,7 +11,7 @@ from backend.app.schema import ApiResponse, UploadRequest, OneImageUploadDTO
 from backend.core.errors import *
 from backend.core.logs.logger import logger
 from backend.core.configs.config import settings
-from backend.storage.vdb.milvusdb import MilvusDB
+from backend.storage.milvus_client import MilvusDB
 from backend.app.api.depends import get_milvus_client
 from backend.app.service.imginsert import insert_image_service
 
@@ -22,9 +22,9 @@ router = APIRouter()
 
 # mcp接口测试
 @router.post(
-    "/upload",
+    "/local_upload",
     operation_id="upload_image",
-    summary="上传图片",
+    summary="本地上传图片",
     description=f"图片支持类型:{ALLOWED_EXTENSIONS}",
 )
 async def upload_image(
@@ -81,12 +81,13 @@ async def upload_image(
 async def api_upload_image(
     files: List[UploadFile] = File(...),
     categories: Optional[List[str]] = Form(None),
+    file_contents: Optional[List[str]] = Form(None),
     milvus_client: MilvusDB = Depends(get_milvus_client),
 ):
     file_status = []
     try:
-        for uploaded_file, file_class in zip(files, categories):
-            tmp_dir = os.path.join(settings.mkdtempdir, file_class)
+        for uploaded_file, file_category, file_content in zip(files, categories, file_contents):
+            tmp_dir = os.path.join(settings.mkdtempdir, file_category)
             if not os.path.exists(tmp_dir):
                 os.makedirs(tmp_dir)
 
@@ -107,7 +108,8 @@ async def api_upload_image(
                     "file_data": file_data,
                     "file_name": uploaded_file.filename,
                     "file_type": uploaded_file.content_type,
-                    "file_class": file_class,
+                    "file_class": file_category,
+                    "file_content": file_content,
                 }
             )
             vectorize_data = await asyncio.to_thread(

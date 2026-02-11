@@ -152,4 +152,3 @@ def create_milvus_client(
     milvus_client = MilvusDB()
     milvus_client.init_milvus_db(host, port, collection_name, vector_dim, auto_id)
     return milvus_client
-

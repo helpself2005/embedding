@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from backend.core.logs.logger import logger
-from backend.storage.vdb.milvusdb import create_milvus_client
+from backend.storage.milvus_client import create_milvus_client
 
 
 @asynccontextmanager
